@@ -79,8 +79,7 @@ int main()
     unsigned long long overallPointsInCircle = 0;
     unsigned long long overallPoints = 0;
 
- 	//using Real = sw::unum::posit<16, 2>;
-	using Real = float;
+ 	using Real = sw::unum::posit<16, 2>;
     Real actualPI = 4 * atan(Real(1.0));
 	using Rand = std::mt19937_64;
 
@@ -88,10 +87,10 @@ int main()
         int pointsInCircle = 0;
         int totalPoints = 0;
 
+		// generate a uniform distribution of doubles, which we'll cast to our own Reals
         Seed<Rand> seed;
         Rand rng(seed);
-
-        std::uniform_real_distribution<Real> uid(-1.0, 1.0);
+        std::uniform_real_distribution<double> uid(-1.0, 1.0);
 
         for (int j = 0; j < N; ++j) {
             Point<Real> p(uid(rng), uid(rng));
