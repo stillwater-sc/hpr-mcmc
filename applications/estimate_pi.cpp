@@ -3,14 +3,12 @@
 // Copyright (C) 2017-2020 Stillwater Supercomputing, Inc.
 //
 // This file is part of the HPR-MCMC project, which is released under an MIT Open Source license.
-#include <random>
 #include <iostream>
 #include <iomanip>
-#include <algorithm>
-#include <iterator>
-#include <array>
 // include a number system of choice 
 #include <universal/posit/posit>
+// include the MCMC library
+#include <hpr-mcmc.hpp>
 
 // Author: Jerry Coffin
 // https://codereview.stackexchange.com/questions/166447/monte-carlo-simulation-to-approximate-the-value-of-pi
@@ -38,30 +36,6 @@ Real percentError(const Real& computed, const Real& actual) noexcept {
      return Real(100.0) * ((computed - actual) / actual);
 }
 
-template <typename Rand>
-class Seed {
-    class seeder {
-        std::array < std::random_device::result_type, Rand::state_size > rand_data;
-    public:
-        seeder() {
-            std::random_device rd;
-            std::generate(rand_data.begin(), rand_data.end(), std::ref(rd));
-        }
-
-        typename std::array < std::random_device::result_type, Rand::state_size >::iterator begin() { return rand_data.begin(); }
-        typename std::array < std::random_device::result_type, Rand::state_size >::iterator end() { return rand_data.end(); }
-    } seed;
-
-public:
-	Seed() : s(seed.begin(), seed.end()) { }
-
-	template <typename I>
-	auto generate(I a, I b) { return s.generate(std::forward<I>(a), std::forward<I>(b)); }
-
-private:
-    std::seed_seq s;
-
-};
 
 template <class Real>
 void report(unsigned long long inCircle, unsigned long long total) {
@@ -72,6 +46,9 @@ void report(unsigned long long inCircle, unsigned long long total) {
 
 int main()
 {
+	using namespace std;
+	using namespace sw::mcmc;
+
     // Test Parameters
     constexpr int M = 10;			// Simulations per program execution
     constexpr int N = 2'000'000;	// Points per simulation
@@ -79,18 +56,19 @@ int main()
     unsigned long long overallPointsInCircle = 0;
     unsigned long long overallPoints = 0;
 
- 	using Real = sw::unum::posit<16, 2>;
+ 	//using Real = sw::unum::posit<16, 1>;
+	using Real = float;
     Real actualPI = 4 * atan(Real(1.0));
-	using Rand = std::mt19937_64;
+	using Generator = std::mt19937_64;
 
     for (int i = 0; i < M; ++i) {
         int pointsInCircle = 0;
         int totalPoints = 0;
 
 		// generate a uniform distribution of doubles, which we'll cast to our own Reals
-        Seed<Rand> seed;
-        Rand rng(seed);
-        std::uniform_real_distribution<double> uid(-1.0, 1.0);
+        Seed<Generator> seed;
+		Generator rng(seed);
+        std::uniform_real_distribution<float> uid(-1.0, 1.0);
 
         for (int j = 0; j < N; ++j) {
             Point<Real> p(uid(rng), uid(rng));
