@@ -11,14 +11,18 @@
 #include <universal/posit/posit>
 #include <hpr-mcmc.hpp>
 
+// System parameters
+constexpr uint64_t instr = 1'000'000;
+constexpr uint64_t l1Lat = 3;    // clocks
+constexpr uint64_t l2Lat = 6;    // clocks
+constexpr uint64_t l3Lat = 9;    // clocks
+constexpr uint64_t memLat = 15;  // clocks
 
 // readRate/writeRate give us some control over the workload model
 template<typename Real>
 Real vonNeumann_v1(Real readRate, Real writeRate) {
-	constexpr Real instr = 1'000'000;
-	constexpr Real memLat = 15;  // clocks
-	const     Real reads = instr * readRate;
-	const     Real writes = instr * writeRate;
+	const Real reads = instr * readRate;
+	const Real writes = instr * writeRate;
 	return instr +
 		instr * memLat +
 		reads * memLat +
@@ -27,11 +31,8 @@ Real vonNeumann_v1(Real readRate, Real writeRate) {
 
 template<typename Real>
 Real harvard_v1(Real readRate, Real writeRate, Real l1InstrHitRate, Real l1DataHitRate, Real writeStallRate) {
-	constexpr Real instr  = 1'000'000;
-	constexpr Real l1Lat  = 3;  // clocks
-	constexpr Real memLat = 15;  // clocks
-	const     Real reads  = instr * readRate;
-	const     Real writes = instr * writeRate;
+	const Real reads  = instr * readRate;
+	const Real writes = instr * writeRate;
 	return instr +
 		instr * l1InstrHitRate*l1Lat +
 		instr * (1.0f - l1InstrHitRate)*memLat +
@@ -42,11 +43,8 @@ Real harvard_v1(Real readRate, Real writeRate, Real l1InstrHitRate, Real l1DataH
 
 template<typename Real>
 Real cambridge_v1(Real readRate, Real writeRate, Real l1InstrHitRate, Real l1DataHitRate, Real writeStallRate) {
-	constexpr Real instr = 1'000'000;
-	constexpr Real l1Lat = 3;  // clocks
-	constexpr Real memLat = 15;  // clocks
-	const     Real reads = instr * readRate;
-	const     Real writes = instr * writeRate;
+	const Real reads = instr * readRate;
+	const Real writes = instr * writeRate;
 	return instr +
 		instr * l1InstrHitRate*l1Lat +
 		instr * (1.0f - l1InstrHitRate)*memLat +
@@ -58,10 +56,16 @@ Real cambridge_v1(Real readRate, Real writeRate, Real l1InstrHitRate, Real l1Dat
 template<typename Real>
 void summaryStats(const std::string& tag, const std::vector<Real>& samples) {
 	using namespace std;
-
+	Real mean(0.0f), sumOfSquares(0.0f), deviation(0.0f);
 	Real sum(0.0f);
 	sum = accumulate(samples.begin(), samples.end(), sum);
-	cout << tag << " : " << sum/Real(samples.size()) << endl;
+	mean = sum / Real(samples.size());
+	for (auto v : samples) {
+		sumOfSquares += (v - mean) * (v - mean);
+	}
+	deviation = sumOfSquares / Real(samples.size());
+	cout << tag << " : " << mean << " +-" << deviation << "  total time\n";
+	cout << "                       : " << mean / Real(instr) << " +-" << deviation / (Real(instr * instr)) << " clocks per instruction" << endl;
 }
 
 int main()
@@ -70,7 +74,7 @@ int main()
 	using namespace sw::mcmc;
 
 	constexpr uint64_t nrTrails = 10;
-	constexpr uint64_t nrDraws = 1'000'000;
+	constexpr uint64_t nrDraws = 5; // 1'000'000;
 
 	using Real = float;
 	using Generator = std::mt19937_64;
@@ -86,7 +90,6 @@ int main()
 		std::normal_distribution<float> l1DataHitRateDistribution(0.875f, 0.1f);
 		std::normal_distribution<float> procWriteStallRateDistribution(0.875f, 0.1f);
 
-		std::vector<Real> spm(nrDraws);
 		std::vector<Real> hdc(nrDraws);
 		std::vector<Real> cam(nrDraws);
 		for (uint64_t j = 0; j < nrDraws; ++j) {
@@ -97,7 +100,6 @@ int main()
 			l1DataHitRate = (l1DataHitRate > 1.0f ? 1.0f : l1DataHitRate);
 			writeStallRate = (writeStallRate > 1.0f ? 1.0f : writeStallRate);
 
-			spm[j] = vonNeumann_v1(readRate, writeRate);
 			hdc[j] = harvard_v1(readRate, writeRate, l1InstrHitRate, l1DataHitRate, writeStallRate); // hdc: Harvard Dual Cache
 			cam[j] = cambridge_v1(readRate, writeRate, l1InstrHitRate, l1DataHitRate, writeStallRate);
 
@@ -107,7 +109,8 @@ int main()
 			cout << "cambridge  : " << cam[j] << endl;
 #endif
 		}
-
+		std::vector<Real> spm(1);
+		spm[0] = vonNeumann_v1(readRate, writeRate);
 		// summarize
 		summaryStats("Stored Program Machine", spm);
 		summaryStats("Harvard Architecture  ", hdc);
